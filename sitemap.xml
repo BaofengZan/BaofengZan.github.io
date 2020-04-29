@@ -78,10 +78,21 @@
     <lastmod>2020-01-01T16:30:00Z</lastmod>
   </url>
   <url>
+    <loc>https://BaofengZan.github.io/home/</loc>
+    <priority>0</priority>
+  </url>
+  <url>
+    <loc>https://BaofengZan.github.io/snippets/</loc>
+    <priority>0</priority>
+  </url>
+  <url>
     <loc>https://BaofengZan.github.io/about/</loc>
   </url>
   <url>
     <loc>https://BaofengZan.github.io/tags/archetypes/</loc>
+  </url>
+  <url>
+    <loc>https://BaofengZan.github.io/_index-%E5%89%AF%E6%9C%AC/</loc>
   </url>
   <url>
     <loc>https://BaofengZan.github.io/tags/config/</loc>
