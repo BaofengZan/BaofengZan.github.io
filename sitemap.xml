@@ -22,6 +22,18 @@
     <loc>https://BaofengZan.github.io/docs/extending/</loc>
   </url>
   <url>
+    <loc>https://BaofengZan.github.io/</loc>
+    <lastmod>2020-04-29T03:00:00Z</lastmod>
+  </url>
+  <url>
+    <loc>https://BaofengZan.github.io/myblog/</loc>
+    <lastmod>2020-04-29T03:00:00Z</lastmod>
+  </url>
+  <url>
+    <loc>https://BaofengZan.github.io/posts/</loc>
+    <lastmod>2020-04-29T03:00:00Z</lastmod>
+  </url>
+  <url>
     <loc>https://BaofengZan.github.io/tags/axiom/</loc>
     <lastmod>2020-01-01T16:30:00Z</lastmod>
   </url>
@@ -30,15 +42,11 @@
     <lastmod>2020-01-01T16:30:00Z</lastmod>
   </url>
   <url>
-    <loc>https://BaofengZan.github.io/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
     <loc>https://BaofengZan.github.io/categories/</loc>
     <lastmod>2020-01-01T16:30:00Z</lastmod>
   </url>
   <url>
-    <loc>https://BaofengZan.github.io/blog/</loc>
+    <loc>https://BaofengZan.github.io/example-post-1/</loc>
     <lastmod>2020-01-01T16:30:00Z</lastmod>
   </url>
   <url>
@@ -63,10 +71,6 @@
   </url>
   <url>
     <loc>https://BaofengZan.github.io/categories/jamstack/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/posts/</loc>
     <lastmod>2020-01-01T16:30:00Z</lastmod>
   </url>
   <url>
