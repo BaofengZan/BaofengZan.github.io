@@ -9,513 +9,582 @@
   </author>
   <icon>https://BaofengZan.github.io/image/brand/icon-1-1.png</icon>
   <logo>https://BaofengZan.github.io/image/brand/icon-2-1.png</logo>
-  <updated>2020-04-29T04:55:43Z</updated>
+  <updated>2020-04-30T02:35:47Z</updated>
   <link rel="self" type="application/atom+xml" href="https://BaofengZan.github.io/feed.atom" hreflang="en-us"/>
   <link rel="alternate" type="text/html" href="https://BaofengZan.github.io/" hreflang="en-us"/>
   <entry>
-    <title>测试博客</title><author>
+    <title>pytorch自定义扩展并导出onnx</title><author>
       <name>Axiom Theme</name>
       <uri>https://example.com/</uri>
     </author>
-    <id>https://BaofengZan.github.io/myblog/</id>
-    <updated>2020-04-29T03:00:00Z</updated>
-    <published>2020-04-29T03:00:00Z</published>
-    <content type="html">&lt;p&gt;更改主题设置。&lt;/p&gt;
-&lt;p&gt;更改图片设置。&lt;/p&gt;</content>
+    <id>https://BaofengZan.github.io/blog/</id>
+    <updated>2020-04-30T02:00:00Z</updated>
+    <published>2020-04-30T02:00:00Z</published>
+    <content type="html">&lt;h1&gt;1 基本知识-torch.nn.Module和torch.autograd.Function&lt;/h1&gt;
+&lt;p&gt;要实现自定义拓展，有两种方式，&lt;br /&gt;(1) 通过继承torch.nn.Module类来实现拓展。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;包装torch.nn普通函数和torch.nn.functional专用于神经网络的函数；（torch.nn.functional是专门为神经网络所定义的函数集合）[&lt;a href=&#34;https://www.zhihu.com/question/66782101&#34;&gt;PyTorch 中，nn 与 nn.functional 有什么区别？&lt;/a&gt;]&lt;/li&gt;
+&lt;li&gt;只需要重新实现__init__和forward函数，求导的函数是不需要设置的，会自动按照求导规则求导(Module类里面是没有定义backward这个函数的）&lt;/li&gt;
+&lt;li&gt;可以保存参数和状态信息；&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;【要实现的层或者操作可以用torch中已经有的进行组合来实现时】&lt;/p&gt;
+&lt;p&gt;（2）通过继承torch.autograd.Function类来实现拓展&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;在有些操作通过组合pytorch中已有的层或者是已有的方法实现不了的时候，比如你要实现一个新的方法，这个新的方法需要forward和backward一起写，然后自己写对中间变量的操作。&lt;/li&gt;
+&lt;li&gt;需要重新实现__init__和forward函数，以及backward函数，需要自己定义求导规则；&lt;/li&gt;
+&lt;li&gt;不可以保存参数和状态信息&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;【当不使用pytorch的自动求导机制时，就要自定义求导规则，应该扩展torch.autograd.Function】&lt;/p&gt;
+&lt;h2&gt;为什么要用torch.autograd.Function&lt;/h2&gt;
+&lt;p&gt;当我们需要一些操作，在nn.functional中没有提供，甚至是torch里面也没有提供时，就需要自己实现，来定义前向和反向的操作。&lt;/p&gt;
+&lt;h3&gt;torch.autograd.Function定义&lt;/h3&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class Function(with_metaclass(FunctionMeta, _C._FunctionBase, _ContextMethodMixin, _HookMixin)):
+ 
+    __call__ = _C._FunctionBase._do_forward
+    is_traceable = False
+ 
+    @staticmethod
+    def forward(ctx, *args, **kwargs):
+ 
+    @staticmethod
+    def backward(ctx, *grad_outputs):
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;strong&gt;属性（成员变量）&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;ff: 传给forward()的参数，在backward()中会用到。&lt;br /&gt;needs_input_grad:长度为num_inputs的bool元组，表示输出是否需要梯度。可以用于优化反向过程的缓存。&lt;br /&gt;num_inputs: 传给函数forward的参数的数量。&lt;br /&gt;num_outputs: 函数forward返回的值的数目。&lt;br /&gt;requires_grad: 布尔值，表示函数 :func:backward 是否永远不会被调用。&lt;br /&gt;
+&lt;br /&gt;成员函数&lt;br /&gt;forward()：该函数可以有任意多个输入、任意多个输出，但是输入和输出必须是Variable。(官方给的例子中有只传入tensor作为参数的例子)&lt;br /&gt;backward()：该函数的输入和输出的个数就是forward()函数的输出和输入的个数。其中，backward()输入表示关于forward()输出的梯度(计算图中上一节点的梯度)，backward()的输出表示关于forward()的输入的梯度。在输入不需要梯度时（通过查看needs_input_grad参数）或者不可导时，可以返回None。&lt;br /&gt;
+&lt;br /&gt;注意这里和Module类最明显的区别是它多了一个backward方法，这也是他俩**最本质的区别：&lt;strong&gt;&lt;br /&gt;&lt;/strong&gt;（1）&lt;strong&gt;torch.nn.Module类实际上是对torch.nn.xxxx以及torch.nn.functional.xxxx这些函数的包装组合，而torch.nn.xxxx和torch.nn.functional.xxxx都是实现了autograd.Function类的两个基本功能（前向运算和反向传播），如果是我们需要的某一个功能torch.nn和torch.nn.functional里面都没有，也不能通过组合得到，这就需要定义新的操作函数，这个函数就需要继承自autograd.Function类，重写前向运算和反向传播。&lt;br /&gt;&lt;/strong&gt;(2) **Module是针对模块的，即神经网络中的层、激活层、损失函数、网络模型等等，而Function是针对函数的，针对的是一些需要自己定义的函数而言的。如果某一个函数my_function继承自Function类，实现了这个类的forward和backward方法，那么我依然可以用nn.Module对这个自定义的的函数my_function进行包装组合，因为此时my_function跟torch.xxxx和torch.nn.functional.xxxx里面的函数已经具备了等同的地位了.&lt;br /&gt;
+&lt;br /&gt;神经网络本质上来说就是一个较复杂的函数，它是由很多的函数运算组合起来的一个复杂函数。&lt;/p&gt;
+&lt;p&gt;求偏导：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;y = x*w &#43;b # 自己定义的LinearFunction
+z = f(y)
+下面的grad_output = dz/dy
+根据复合函数求导法则:
+1. dz/dx =  dz/dy * dy/dx = grad_output*dy/dx = grad_output*w
+2. dz/dw =  dz/dy * dy/dw = grad_output*dy/dw = grad_output*x
+3. dz/db = dz/dy * dy/db = grad_output*1
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;a name=&#34;lUll7&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h2&gt;实例：torch.autograd.Function&lt;/h2&gt;
+&lt;p&gt;&lt;a name=&#34;V98FR&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h3&gt;标量对标量求导&lt;/h3&gt;
+&lt;p&gt;&lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/08b0e174ffa6c4beff9f6fe43a4677d4.svg#card=math&amp;amp;code=z%3D%5Csqrt%7Bx%7D%2B%5Cfrac%7B1%7D%7Bx%7D%2B2%2Ay%5E%7B2%7D&amp;amp;height=45&amp;amp;width=180&#34; alt=&#34;&#34;&gt;&lt;br /&gt;对两个变量求偏导：&lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/6dd641e9c3fe9ff17b2012e6714c1a90.svg#card=math&amp;amp;code=%5Cfrac%7B%5Cpartial%20z%7D%7B%5Cpartial%20x%7D%20%3D%20%5Cfrac%7B1%7D%7B2%2A%5Csqrt%7Bx%7D%7D-%5Cfrac%7B1%7D%7Bx%5E%7B2%7D%7D&amp;amp;height=55&amp;amp;width=174&#34; alt=&#34;&#34;&gt;， &lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/aa322133949da2454424848be25a6a2f.svg#card=math&amp;amp;code=%5Cfrac%7B%5Cpartial%20z%7D%7B%5Cpartial%20y%7D%20%3D%204%2Ay&amp;amp;height=52&amp;amp;width=94&#34; alt=&#34;&#34;&gt;。&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;#coding=utf-8
+
+import numpy as np
+import torch
+
+class sqrt_and_inverse(torch.autograd.Function):
+    &amp;quot;&amp;quot;&amp;quot;
+        forward和backward可以定义成静态方法，向定义中那样，否会报错
+        ctx 相当于self，ctx是一个上下文对象，可用于存储用于向后计算的信息
+    &amp;quot;&amp;quot;&amp;quot;
+
+    @staticmethod
+    def forward(ctx, input_x, input_y):
+        &amp;quot;&amp;quot;&amp;quot;    
+        self.save_for_backward(input_x,input_y) ,这个函数是定义在Function的
+        父类_ContextMethodMixin中
+        它是将函数的输入参数保存起来以便后面在求导时候再使用，起前向反向传播中协调作用
+        &amp;quot;&amp;quot;&amp;quot;
+        ctx.save_for_backward(input_x, input_y)
+
+        # torch.reciprocal(input,out=None)说明:返回一个新张量,包含输入input张量每个元素的倒数。
+        output = torch.sqrt(input_x) &#43; torch.reciprocal(input_x) &#43; 2 * torch.pow(input_y, 2)
+        print(&amp;quot;forward: {}&amp;quot;.format(output))
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        &amp;quot;&amp;quot;&amp;quot;
+        :param grad_output: gradient其实就是反向传播上一级计算得到的梯度值[链式求导]
+        &amp;quot;&amp;quot;&amp;quot;
+        input_x, input_y = ctx.saved_tensors # # 获取前面保存的参数,也可以使用self.saved_variables
+        grad_x = grad_output * (torch.reciprocal(2*torch.sqrt(input_x))-torch.reciprocal(torch.pow(input_x,2)))
+        grad_y = grad_output * ( 4*input_y)
+        return grad_x, grad_y #需要注意的是，反向传播得到的结果需要与输入的参数相匹配
+
+
+# 将类封装为一个函数，便于使用，目前最常用的是 apply函数
+MyFuc = sqrt_and_inverse.apply
+
+if __name__ == &amp;quot;__main__&amp;quot;:
+    x = torch.tensor(4.0, requires_grad=True)
+    y = torch.tensor(2.0, requires_grad=True)
+
+    print(&amp;quot;开始前向。。&amp;quot;)
+    z = MyFuc(x, y)
+
+    print(&#39;开始反向传播&#39;)
+    z.backward()
+
+    print(x.grad)  # 预期结果3/16=0.1875
+    print(y.grad) # 8
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img src=&#34;./imgs/1.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;h3&gt;标量对向量求导&lt;/h3&gt;
+&lt;p&gt;&lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/5fa95988cb9a7fd596f6c392daf541cd.svg#card=math&amp;amp;code=z%20%3D%20%5Csum%20%5Csqrt%7B%28x%5E2-1%29%29%7D&amp;amp;height=42&amp;amp;width=167&#34; alt=&#34;&#34;&gt;&lt;br /&gt;其中&lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/d2e3b43cefcce8b24578a1a0d5f8045d.svg#card=math&amp;amp;code=x%3D%5Bx_%7B1%7D%2C%20x_%7B2%7D%2C%20x_%7B3%7D%5D&amp;amp;height=25&amp;amp;width=129&#34; alt=&#34;&#34;&gt;。&lt;br /&gt;&lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/f16834c5ce1c29dbbed2c3479cd2b6ce.svg#card=math&amp;amp;code=%5Cfrac%7B%5Cpartial%20z%7D%7B%5Cpartial%20x_%7Bi%7D%7D%20%3D%20%5Cfrac%7Bx_%7Bi%7D%7D%20%7B%5Csqrt%7B%28x_%7Bi%7D%5E2-1%29%7D%7D&amp;amp;height=71&amp;amp;width=162&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;
+#coding=utf-8
+
+import numpy as np
+import torch
+
+class sqrt_and_inverse(torch.autograd.Function):
+    &amp;quot;&amp;quot;&amp;quot;
+        forward和backward可以定义成静态方法，向定义中那样，否会报错
+        ctx 相当于self
+    &amp;quot;&amp;quot;&amp;quot;
+
+    @staticmethod
+    def forward(ctx, input_x):
+        &amp;quot;&amp;quot;&amp;quot;
+        self.save_for_backward(input_x,input_y) ,这个函数是定义在Function的父类_ContextMethodMixin中
+        它是将函数的输入参数保存起来以便后面在求导时候再使用，起前向反向传播中协调作用
+        &amp;quot;&amp;quot;&amp;quot;
+        ctx.save_for_backward(input_x)
+
+        # torch.reciprocal(input,out=None)说明:返回一个新张量,包含输入input张量每个元素的倒数。
+        output = torch.sum(torch.sqrt(torch.pow(input_x, 2) - 1))
+        print(&amp;quot;forward: {}&amp;quot;.format(output))
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        &amp;quot;&amp;quot;&amp;quot;
+        :param grad_output: gradient其实就是反向传播上一级计算得到的梯度值[链式求导]
+        &amp;quot;&amp;quot;&amp;quot;
+        # ctx.saved_tensors 返回的是tuple,一维度 (1,)
+        input_x, = ctx.saved_tensors # # 获取前面保存的参数,也可以使用self.saved_variables
+        grad_x = grad_output * (torch.div(input_x, torch.sqrt(torch.pow(input_x, 2) - 1)))
+        return grad_x #需要注意的是，反向传播得到的结果需要与输入的参数相匹配
+
+
+# 将类封装为一个函数，便于使用，目前最常用的是 apply函数
+MyFuc = sqrt_and_inverse.apply
+
+if __name__ == &amp;quot;__main__&amp;quot;:
+    x = torch.tensor([2.0, 3.0, 4.0], requires_grad=True)  # tensor
+
+    print(&#39;开始前向传播&#39;)
+
+    z = MyFuc(x)
+
+    print(&#39;开始反向传播&#39;)
+    # 测试 1（两个只能一次运行一个）
+    #z.backward()
+
+     ## 测试2
+    print(&amp;quot;输入gradient: {}&amp;quot;.format(10))
+    gradient=torch.tensor(10)
+	z.backward(gradient)   
+    
+    print(x.grad)
+
+   
+	
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img src=&#34;./imgs/2.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;./imgs/3.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;【注意1】自定义函数backward中的grad_output实际上就是通过backward传递进去的参数gradient，这个参数必须是一个tensor类型，当是标量求导的时候，它是一个标量值，当是向量求导的时候，它是一个和求导向量同维度的向量。&lt;/p&gt;
+&lt;h2&gt;定义自己函数的模板&lt;/h2&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class MyFunction(torch.autograd.Function):
+    &amp;quot;&amp;quot;&amp;quot;
+        forward和backward可以定义成静态方法，向定义中那样，否会报错
+        ctx 相当于self
+    &amp;quot;&amp;quot;&amp;quot;
+
+    @staticmethod
+    def forward(ctx, inputs, param):
+        &amp;quot;&amp;quot;&amp;quot;
+        自己定义的Function中的forward()方法，所有的Variable参数将会转成tensor， 
+        因此这里的input也是tensor．
+        在传入forward前，autograd engine会自动将Variable unpack成Tensor。
+        
+        self.save_for_backward(input_x,input_y) ,这个函数是定义在Function的
+        父类_ContextMethodMixin中。
+        它是将函数的输入参数保存起来以便后面在求导时候再使用，起前向反向传播中协调作用
+        
+        save_for_backward只能传入Variable或是Tensor的变量，如果是其他类型的，可以用
+        ctx.xyz = xyz，使其在backward中可以用。		
+        &amp;quot;&amp;quot;&amp;quot;
+        self.saved_for_backward = [inputs, parameters]
+        # output = [对输入和参数进行的操作，其实就是前向运算的函数表达式]
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        &amp;quot;&amp;quot;&amp;quot;
+        :param grad_output: gradient其实就是反向传播上一级计算得到的梯度值[链式求导]
+        
+        默认情况下，你拿到grad_output时候，会发现它是一个Variable，
+        虽然自定义操作，但是原则上在backward中我们只能进行Variable的操作,
+        这显然就要求我们在backward中的操作都是可自动求导的。
+        
+        另外自动求导是根据每个op的backward创建的graph来进行的！
+        因此我们需要在backward中用全部用variable来操作
+        
+        另外在pytorch 0.4之后，Variable和Tensor合并了。就没有了这样的问题了，输入也可以是tensor了。
+        &amp;quot;&amp;quot;&amp;quot;
+        # ctx.saved_tensors 返回的是tuple,一维度 (1,)
+        inputs, parameters = self.saved_tensors # 或者是self.saved_variables
+        # grad_inputs = [求函数forward(input)关于 parameters 的导数，其实就是反向运算的导数表达式] * grad_output
+        return grad_input #需要注意的是，反向传播得到的结果需要与输入的参数相匹配
+
+
+# 将类封装为一个函数，便于使用，目前最常用的是 apply函数
+MyFuc = MyFunction.apply
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;a name=&#34;ISe5H&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h2&gt;用自定义的Function创建一个Module&lt;/h2&gt;
+&lt;p&gt;虽然Function类可以用来定义模型，但是不要这么去做，因为Function类本身是为自定义函数而存在。实际上可以先定义一个函数后，然后再创建一个Module，那么利用这Module就可以去搭建复杂的网络。&lt;br /&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;#coding=utf-8
+import torch
+import torch.nn as nn
+
+class LinearFunction(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, input, weight, bias=None):
+        print(type(input))
+        ctx.save_for_backward(input, weight, bias) # 将Tensor转变为Variable保存到ctx中
+        output = input.mm(weight.t())  # torch.t()方法，对2D tensor进行转置
+        if bias is not None:
+            output &#43;= bias.unsqueeze(0).expand_as(output)
+            # expand_as(tensor)等价于expand(tensor.size()), 将原tensor按照新的size进行扩展
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        # grad_output为反向传播上一级计算得到的梯度值
+        input, weight, bias = ctx.saved_variables
+        grad_input = grad_weight = grad_bias = None
+        # 分别代表输入,权值,偏置三者的梯度
+        # 判断三者对应的Variable是否需要进行反向求导计算梯度
+        if ctx.needs_input_grad[0]:
+            grad_input = grad_output.mm(weight) # 复合函数求导，链式法则
+        if ctx.needs_input_grad[1]:
+            grad_weight = grad_output.t().mm(input)
+        if bias is not None and ctx.needs_input_grad[2]:
+            grad_bias = grad_output.sum(0).squeeze(0)
+
+        return grad_input, grad_weight, grad_bias
+
+# 或者使用apply方法对自己定义的方法取个别名
+linear = LinearFunction.apply
+
+
+class Linear(nn.Module):
+    def __init__(self, input_features, output_features, bias=True):
+        super(Linear, self).__init__()
+        self.input_features = input_features
+        self.output_features = output_features
+        # nn.Parameter is a special kind of Variable, that will get
+        # automatically registered as Module&#39;s parameter once it&#39;s assigned
+        # 这个很重要！ Parameters是默认需要梯度的！
+        self.weight = nn.Parameter(torch.Tensor(output_features, input_features))
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(output_features))
+        else:
+            # You should always register all possible parameters, but the
+            # optional ones can be None if you want.
+            self.register_parameter(&#39;bias&#39;, None)
+        # Not a very smart way to initialize weights
+        self.weight.data.uniform_(-0.1, 0.1)
+        if bias is not None:
+            self.bias.data.uniform_(-0.1, 0.1)
+    def forward(self, input):
+        # See the autograd section for explanation of what happens here.
+        return LinearFunction.apply(input, self.weight, self.bias)
+        # 或者　return LinearFunction()(input, self.weight, self.bias)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;br /&gt;参考&lt;br /&gt;1 &lt;a href=&#34;https://blog.csdn.net/qq_27825451/article/details/95189376?depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-8&amp;amp;utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-8&#34;&gt;https://blog.csdn.net/qq_27825451/article/details/95189376?depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-8&amp;amp;utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-8&lt;/a&gt;&lt;br /&gt;2 &lt;a href=&#34;https://blog.csdn.net/qq_27825451/article/details/95312816?depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1&amp;amp;utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1&#34;&gt;https://blog.csdn.net/qq_27825451/article/details/95312816?depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1&amp;amp;utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1&lt;/a&gt;&lt;br /&gt;3 &lt;a href=&#34;https://blog.csdn.net/Hungryof/article/details/78346304&#34;&gt;https://blog.csdn.net/Hungryof/article/details/78346304&lt;/a&gt;&lt;br /&gt;4 &lt;a href=&#34;https://ptorch.com/docs/1/extending#torchnn&#34;&gt;https://ptorch.com/docs/1/extending#torchnn&lt;/a&gt;&lt;/p&gt;</content>
   </entry>
   <entry>
-    <title>Example Post 1</title><author>
+    <title>pytorch自定义扩展并导出onnx</title><author>
       <name>Axiom Theme</name>
       <uri>https://example.com/</uri>
     </author>
-    <id>https://BaofengZan.github.io/example-post-1/</id>
-    <updated>2020-01-01T16:30:00Z</updated>
-    <published>2020-01-01T16:30:00Z</published>
-    <content type="html">&lt;p&gt;This article offers a sample of basic Markdown syntax that can be used in Hugo content files, also it shows whether basic HTML elements are decorated with CSS in a Hugo theme.&lt;/p&gt;
-&lt;h2&gt;第一个测试blog&lt;/h2&gt;
-&lt;p&gt;The following HTML &lt;code&gt;&amp;lt;h1&amp;gt;&lt;/code&gt;—&lt;code&gt;&amp;lt;h6&amp;gt;&lt;/code&gt; elements represent six levels of section headings. &lt;code&gt;&amp;lt;h1&amp;gt;&lt;/code&gt; is the highest section level while &lt;code&gt;&amp;lt;h6&amp;gt;&lt;/code&gt; is the lowest.&lt;/p&gt;
-&lt;h1&gt;H1&lt;/h1&gt;
-&lt;h2&gt;H2 sdasdsad&lt;/h2&gt;
-&lt;h3&gt;H3&lt;/h3&gt;
-&lt;h4&gt;H4&lt;/h4&gt;
-&lt;h5&gt;H5&lt;/h5&gt;
-&lt;h6&gt;H6&lt;/h6&gt;
-&lt;h2&gt;Paragraph&lt;/h2&gt;
-&lt;p&gt;Xerum, quo qui aut unt expliquam qui dolut labo. Aque venitatiusda cum, voluptionse latur sitiae dolessi aut parist aut dollo enim qui voluptate ma dolestendit peritin re plis aut quas inctum laceat est volestemque commosa as cus endigna tectur, offic to cor sequas etum rerum idem sintibus eiur?&lt;/p&gt;
-&lt;p&gt;Itatur? Quiatae cullecum rem ent aut odis in re eossequodi nonsequ idebis ne sapicia is sinveli squiatum, core et que aut hariosam ex eat.&lt;/p&gt;
-&lt;h2&gt;Blockquotes&lt;/h2&gt;
-&lt;p&gt;The blockquote element represents content that is quoted from another source, optionally with a citation which must be within a &lt;code&gt;footer&lt;/code&gt; or &lt;code&gt;cite&lt;/code&gt; element, and optionally with in-line changes such as annotations and abbreviations.&lt;/p&gt;
-&lt;h3&gt;Blockquote without attribution&lt;/h3&gt;
-&lt;blockquote&gt;
-&lt;p&gt;Tiam, ad mint andaepu dandae nostion secatur sequo quae.
-&lt;strong&gt;Note&lt;/strong&gt; that you can use &lt;em&gt;Markdown syntax&lt;/em&gt; within a blockquote.&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h3&gt;Blockquote with attribution&lt;/h3&gt;
-&lt;blockquote&gt;
-&lt;p&gt;You can trade hours for dollars or ideas for millions.&lt;/p&gt;
-— &lt;cite&gt;Cactus Jack&lt;sup id=&#34;fnref:1&#34;&gt;&lt;a href=&#34;#fn:1&#34; class=&#34;footnote-ref&#34; role=&#34;doc-noteref&#34;&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;/cite&gt;&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h2&gt;Tables&lt;/h2&gt;
-&lt;p&gt;Tables aren&#39;t part of the core Markdown spec, but Hugo supports them.&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Name&lt;/th&gt;
-&lt;th&gt;Age&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;Bob&lt;/td&gt;
-&lt;td&gt;27&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Alice&lt;/td&gt;
-&lt;td&gt;23&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h3&gt;Using Markdown inside table cells&lt;/h3&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Italics&lt;/th&gt;
-&lt;th&gt;Bold&lt;/th&gt;
-&lt;th&gt;Code&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;em&gt;italics&lt;/em&gt;&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;bold&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;code&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2&gt;Code Blocks&lt;/h2&gt;
-&lt;pre&gt;&lt;code class=&#34;language-html&#34;&gt;&amp;lt;!doctype html&amp;gt;
-&amp;lt;html lang=&amp;quot;en&amp;quot;&amp;gt;
-&amp;lt;head&amp;gt;
-  &amp;lt;meta charset=&amp;quot;utf-8&amp;quot;&amp;gt;
-  &amp;lt;title&amp;gt;Title&amp;lt;/title&amp;gt;
-&amp;lt;/head&amp;gt;
-&amp;lt;body&amp;gt;
-  &amp;lt;p&amp;gt;Lorem...&amp;lt;/p&amp;gt;
-&amp;lt;/body&amp;gt;
-&amp;lt;/html&amp;gt;
+    <id>https://BaofengZan.github.io/pytorch%E8%87%AA%E5%AE%9A%E4%B9%89%E6%89%A9%E5%B1%95%E5%B9%B6%E5%AF%BC%E5%87%BAonnx/</id>
+    <updated>2020-04-30T02:00:00Z</updated>
+    <published>2020-04-30T02:00:00Z</published>
+    <content type="html">&lt;h1&gt;1 基本知识-torch.nn.Module和torch.autograd.Function&lt;/h1&gt;
+&lt;p&gt;要实现自定义拓展，有两种方式，&lt;br /&gt;(1) 通过继承torch.nn.Module类来实现拓展。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;包装torch.nn普通函数和torch.nn.functional专用于神经网络的函数；（torch.nn.functional是专门为神经网络所定义的函数集合）[&lt;a href=&#34;https://www.zhihu.com/question/66782101&#34;&gt;PyTorch 中，nn 与 nn.functional 有什么区别？&lt;/a&gt;]&lt;/li&gt;
+&lt;li&gt;只需要重新实现__init__和forward函数，求导的函数是不需要设置的，会自动按照求导规则求导(Module类里面是没有定义backward这个函数的）&lt;/li&gt;
+&lt;li&gt;可以保存参数和状态信息；&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;【要实现的层或者操作可以用torch中已经有的进行组合来实现时】&lt;/p&gt;
+&lt;p&gt;（2）通过继承torch.autograd.Function类来实现拓展&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;在有些操作通过组合pytorch中已有的层或者是已有的方法实现不了的时候，比如你要实现一个新的方法，这个新的方法需要forward和backward一起写，然后自己写对中间变量的操作。&lt;/li&gt;
+&lt;li&gt;需要重新实现__init__和forward函数，以及backward函数，需要自己定义求导规则；&lt;/li&gt;
+&lt;li&gt;不可以保存参数和状态信息&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;【当不使用pytorch的自动求导机制时，就要自定义求导规则，应该扩展torch.autograd.Function】&lt;/p&gt;
+&lt;h2&gt;为什么要用torch.autograd.Function&lt;/h2&gt;
+&lt;p&gt;当我们需要一些操作，在nn.functional中没有提供，甚至是torch里面也没有提供时，就需要自己实现，来定义前向和反向的操作。&lt;/p&gt;
+&lt;h3&gt;torch.autograd.Function定义&lt;/h3&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class Function(with_metaclass(FunctionMeta, _C._FunctionBase, _ContextMethodMixin, _HookMixin)):
+ 
+    __call__ = _C._FunctionBase._do_forward
+    is_traceable = False
+ 
+    @staticmethod
+    def forward(ctx, *args, **kwargs):
+ 
+    @staticmethod
+    def backward(ctx, *grad_outputs):
 &lt;/code&gt;&lt;/pre&gt;
-&lt;h2&gt;List Types&lt;/h2&gt;
-&lt;h3&gt;Ordered List&lt;/h3&gt;
-&lt;ol&gt;
-&lt;li&gt;First item&lt;/li&gt;
-&lt;li&gt;Second item&lt;/li&gt;
-&lt;li&gt;Third item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h3&gt;Unordered List&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;List item&lt;/li&gt;
-&lt;li&gt;Another item&lt;/li&gt;
-&lt;li&gt;And another item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3&gt;Nested Lists&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;ul &amp;gt; ul
-&lt;ul&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;ol&gt;
-&lt;li&gt;ol &amp;gt; ol
-&lt;ol&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;ul&gt;
-&lt;li&gt;ul &amp;gt; ol
-&lt;ol&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;ol&gt;
-&lt;li&gt;ol &amp;gt; ul
-&lt;ul&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;ul&gt;
-&lt;li&gt;ul &amp;gt; ul &amp;gt; ul
-&lt;ul&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item
-&lt;ul&gt;
-&lt;li&gt;Third Sub-Sub-item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;ol&gt;
-&lt;li&gt;ol &amp;gt; ol &amp;gt; ol
-&lt;ol&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item
-&lt;ol&gt;
-&lt;li&gt;Third Sub-Sub-item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h2&gt;Other Elements - abbr, sub, sup, kbd, mark&lt;/h2&gt;
-&lt;p&gt;&lt;abbr title=&#34;Graphics Interchange Format&#34;&gt;GIF&lt;/abbr&gt; is a bitmap image format.&lt;/p&gt;
-&lt;p&gt;H&lt;sub&gt;2&lt;/sub&gt;O X&lt;sup&gt;n&lt;/sup&gt; &#43; Y&lt;sup&gt;n&lt;/sup&gt; = Z&lt;sup&gt;n&lt;/sup&gt;&lt;/p&gt;
-&lt;p&gt;Press &lt;kbd&gt;&lt;kbd&gt;CTRL&lt;/kbd&gt;&#43;&lt;kbd&gt;ALT&lt;/kbd&gt;&#43;&lt;kbd&gt;Delete&lt;/kbd&gt;&lt;/kbd&gt; to end the session.&lt;/p&gt;
-&lt;p&gt;Most &lt;mark&gt;salamanders&lt;/mark&gt; are nocturnal, and hunt for insects, worms, and other small creatures.&lt;/p&gt;
-&lt;section class=&#34;footnotes&#34; role=&#34;doc-endnotes&#34;&gt;
-&lt;hr&gt;
-&lt;ol&gt;
-&lt;li id=&#34;fn:1&#34; role=&#34;doc-endnote&#34;&gt;
-&lt;p&gt;&lt;a href=&#34;https://www.example.com/&#34;&gt;The Shark Tank&lt;/a&gt;. &lt;a href=&#34;#fnref:1&#34; class=&#34;footnote-backref&#34; role=&#34;doc-backlink&#34;&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/section&gt;</content>
-  </entry>
-  <entry>
-    <title>Example Post 2</title><author>
-      <name>Axiom Theme</name>
-      <uri>https://example.com/</uri>
-    </author>
-    <id>https://BaofengZan.github.io/example-post-2/</id>
-    <updated>2020-01-01T16:30:00Z</updated>
-    <published>2020-01-01T16:30:00Z</published>
-    <content type="html">&lt;p&gt;This article offers a sample of basic Markdown syntax that can be used in Hugo content files, also it shows whether basic HTML elements are decorated with CSS in a Hugo theme.&lt;/p&gt;
-&lt;h2&gt;Headings&lt;/h2&gt;
-&lt;p&gt;The following HTML &lt;code&gt;&amp;lt;h1&amp;gt;&lt;/code&gt;—&lt;code&gt;&amp;lt;h6&amp;gt;&lt;/code&gt; elements represent six levels of section headings. &lt;code&gt;&amp;lt;h1&amp;gt;&lt;/code&gt; is the highest section level while &lt;code&gt;&amp;lt;h6&amp;gt;&lt;/code&gt; is the lowest.&lt;/p&gt;
-&lt;h1&gt;H1&lt;/h1&gt;
-&lt;h2&gt;H2&lt;/h2&gt;
-&lt;h3&gt;H3&lt;/h3&gt;
-&lt;h4&gt;H4&lt;/h4&gt;
-&lt;h5&gt;H5&lt;/h5&gt;
-&lt;h6&gt;H6&lt;/h6&gt;
-&lt;h2&gt;Paragraph&lt;/h2&gt;
-&lt;p&gt;Xerum, quo qui aut unt expliquam qui dolut labo. Aque venitatiusda cum, voluptionse latur sitiae dolessi aut parist aut dollo enim qui voluptate ma dolestendit peritin re plis aut quas inctum laceat est volestemque commosa as cus endigna tectur, offic to cor sequas etum rerum idem sintibus eiur?&lt;/p&gt;
-&lt;p&gt;Itatur? Quiatae cullecum rem ent aut odis in re eossequodi nonsequ idebis ne sapicia is sinveli squiatum, core et que aut hariosam ex eat.&lt;/p&gt;
-&lt;h2&gt;Blockquotes&lt;/h2&gt;
-&lt;p&gt;The blockquote element represents content that is quoted from another source, optionally with a citation which must be within a &lt;code&gt;footer&lt;/code&gt; or &lt;code&gt;cite&lt;/code&gt; element, and optionally with in-line changes such as annotations and abbreviations.&lt;/p&gt;
-&lt;h3&gt;Blockquote without attribution&lt;/h3&gt;
-&lt;blockquote&gt;
-&lt;p&gt;Tiam, ad mint andaepu dandae nostion secatur sequo quae.
-&lt;strong&gt;Note&lt;/strong&gt; that you can use &lt;em&gt;Markdown syntax&lt;/em&gt; within a blockquote.&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h3&gt;Blockquote with attribution&lt;/h3&gt;
-&lt;blockquote&gt;
-&lt;p&gt;You can trade hours for dollars or ideas for millions.&lt;/p&gt;
-— &lt;cite&gt;Cactus Jack&lt;sup id=&#34;fnref:1&#34;&gt;&lt;a href=&#34;#fn:1&#34; class=&#34;footnote-ref&#34; role=&#34;doc-noteref&#34;&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;/cite&gt;&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h2&gt;Tables&lt;/h2&gt;
-&lt;p&gt;Tables aren&#39;t part of the core Markdown spec, but Hugo supports them.&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Name&lt;/th&gt;
-&lt;th&gt;Age&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;Bob&lt;/td&gt;
-&lt;td&gt;27&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Alice&lt;/td&gt;
-&lt;td&gt;23&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h3&gt;Using Markdown inside table cells&lt;/h3&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Italics&lt;/th&gt;
-&lt;th&gt;Bold&lt;/th&gt;
-&lt;th&gt;Code&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;em&gt;italics&lt;/em&gt;&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;bold&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;code&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2&gt;Code Blocks&lt;/h2&gt;
-&lt;pre&gt;&lt;code class=&#34;language-html&#34;&gt;&amp;lt;!doctype html&amp;gt;
-&amp;lt;html lang=&amp;quot;en&amp;quot;&amp;gt;
-&amp;lt;head&amp;gt;
-  &amp;lt;meta charset=&amp;quot;utf-8&amp;quot;&amp;gt;
-  &amp;lt;title&amp;gt;Title&amp;lt;/title&amp;gt;
-&amp;lt;/head&amp;gt;
-&amp;lt;body&amp;gt;
-  &amp;lt;p&amp;gt;Lorem...&amp;lt;/p&amp;gt;
-&amp;lt;/body&amp;gt;
-&amp;lt;/html&amp;gt;
+&lt;p&gt;&lt;strong&gt;属性（成员变量）&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;ff: 传给forward()的参数，在backward()中会用到。&lt;br /&gt;needs_input_grad:长度为num_inputs的bool元组，表示输出是否需要梯度。可以用于优化反向过程的缓存。&lt;br /&gt;num_inputs: 传给函数forward的参数的数量。&lt;br /&gt;num_outputs: 函数forward返回的值的数目。&lt;br /&gt;requires_grad: 布尔值，表示函数 :func:backward 是否永远不会被调用。&lt;br /&gt;
+&lt;br /&gt;成员函数&lt;br /&gt;forward()：该函数可以有任意多个输入、任意多个输出，但是输入和输出必须是Variable。(官方给的例子中有只传入tensor作为参数的例子)&lt;br /&gt;backward()：该函数的输入和输出的个数就是forward()函数的输出和输入的个数。其中，backward()输入表示关于forward()输出的梯度(计算图中上一节点的梯度)，backward()的输出表示关于forward()的输入的梯度。在输入不需要梯度时（通过查看needs_input_grad参数）或者不可导时，可以返回None。&lt;br /&gt;
+&lt;br /&gt;注意这里和Module类最明显的区别是它多了一个backward方法，这也是他俩**最本质的区别：&lt;strong&gt;&lt;br /&gt;&lt;/strong&gt;（1）&lt;strong&gt;torch.nn.Module类实际上是对torch.nn.xxxx以及torch.nn.functional.xxxx这些函数的包装组合，而torch.nn.xxxx和torch.nn.functional.xxxx都是实现了autograd.Function类的两个基本功能（前向运算和反向传播），如果是我们需要的某一个功能torch.nn和torch.nn.functional里面都没有，也不能通过组合得到，这就需要定义新的操作函数，这个函数就需要继承自autograd.Function类，重写前向运算和反向传播。&lt;br /&gt;&lt;/strong&gt;(2) **Module是针对模块的，即神经网络中的层、激活层、损失函数、网络模型等等，而Function是针对函数的，针对的是一些需要自己定义的函数而言的。如果某一个函数my_function继承自Function类，实现了这个类的forward和backward方法，那么我依然可以用nn.Module对这个自定义的的函数my_function进行包装组合，因为此时my_function跟torch.xxxx和torch.nn.functional.xxxx里面的函数已经具备了等同的地位了.&lt;br /&gt;
+&lt;br /&gt;神经网络本质上来说就是一个较复杂的函数，它是由很多的函数运算组合起来的一个复杂函数。&lt;/p&gt;
+&lt;p&gt;求偏导：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;y = x*w &#43;b # 自己定义的LinearFunction
+z = f(y)
+下面的grad_output = dz/dy
+根据复合函数求导法则:
+1. dz/dx =  dz/dy * dy/dx = grad_output*dy/dx = grad_output*w
+2. dz/dw =  dz/dy * dy/dw = grad_output*dy/dw = grad_output*x
+3. dz/db = dz/dy * dy/db = grad_output*1
 &lt;/code&gt;&lt;/pre&gt;
-&lt;h2&gt;List Types&lt;/h2&gt;
-&lt;h3&gt;Ordered List&lt;/h3&gt;
-&lt;ol&gt;
-&lt;li&gt;First item&lt;/li&gt;
-&lt;li&gt;Second item&lt;/li&gt;
-&lt;li&gt;Third item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h3&gt;Unordered List&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;List item&lt;/li&gt;
-&lt;li&gt;Another item&lt;/li&gt;
-&lt;li&gt;And another item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3&gt;Nested Lists&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;ul &amp;gt; ul
-&lt;ul&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;ol&gt;
-&lt;li&gt;ol &amp;gt; ol
-&lt;ol&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;ul&gt;
-&lt;li&gt;ul &amp;gt; ol
-&lt;ol&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;ol&gt;
-&lt;li&gt;ol &amp;gt; ul
-&lt;ul&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;ul&gt;
-&lt;li&gt;ul &amp;gt; ul &amp;gt; ul
-&lt;ul&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item
-&lt;ul&gt;
-&lt;li&gt;Third Sub-Sub-item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;ol&gt;
-&lt;li&gt;ol &amp;gt; ol &amp;gt; ol
-&lt;ol&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item
-&lt;ol&gt;
-&lt;li&gt;Third Sub-Sub-item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h2&gt;Other Elements - abbr, sub, sup, kbd, mark&lt;/h2&gt;
-&lt;p&gt;&lt;abbr title=&#34;Graphics Interchange Format&#34;&gt;GIF&lt;/abbr&gt; is a bitmap image format.&lt;/p&gt;
-&lt;p&gt;H&lt;sub&gt;2&lt;/sub&gt;O X&lt;sup&gt;n&lt;/sup&gt; &#43; Y&lt;sup&gt;n&lt;/sup&gt; = Z&lt;sup&gt;n&lt;/sup&gt;&lt;/p&gt;
-&lt;p&gt;Press &lt;kbd&gt;&lt;kbd&gt;CTRL&lt;/kbd&gt;&#43;&lt;kbd&gt;ALT&lt;/kbd&gt;&#43;&lt;kbd&gt;Delete&lt;/kbd&gt;&lt;/kbd&gt; to end the session.&lt;/p&gt;
-&lt;p&gt;Most &lt;mark&gt;salamanders&lt;/mark&gt; are nocturnal, and hunt for insects, worms, and other small creatures.&lt;/p&gt;
-&lt;section class=&#34;footnotes&#34; role=&#34;doc-endnotes&#34;&gt;
-&lt;hr&gt;
-&lt;ol&gt;
-&lt;li id=&#34;fn:1&#34; role=&#34;doc-endnote&#34;&gt;
-&lt;p&gt;&lt;a href=&#34;https://www.example.com/&#34;&gt;The Shark Tank&lt;/a&gt;. &lt;a href=&#34;#fnref:1&#34; class=&#34;footnote-backref&#34; role=&#34;doc-backlink&#34;&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/section&gt;</content>
-  </entry>
-  <entry>
-    <title>Example Post 3</title><author>
-      <name>Axiom Theme</name>
-      <uri>https://example.com/</uri>
-    </author>
-    <id>https://BaofengZan.github.io/example-post-3/</id>
-    <updated>2020-01-01T16:30:00Z</updated>
-    <published>2020-01-01T16:30:00Z</published>
-    <content type="html">&lt;p&gt;This article offers a sample of basic Markdown syntax that can be used in Hugo content files, also it shows whether basic HTML elements are decorated with CSS in a Hugo theme.&lt;/p&gt;
-&lt;h2&gt;Headings&lt;/h2&gt;
-&lt;p&gt;The following HTML &lt;code&gt;&amp;lt;h1&amp;gt;&lt;/code&gt;—&lt;code&gt;&amp;lt;h6&amp;gt;&lt;/code&gt; elements represent six levels of section headings. &lt;code&gt;&amp;lt;h1&amp;gt;&lt;/code&gt; is the highest section level while &lt;code&gt;&amp;lt;h6&amp;gt;&lt;/code&gt; is the lowest.&lt;/p&gt;
-&lt;h1&gt;H1&lt;/h1&gt;
-&lt;h2&gt;H2&lt;/h2&gt;
-&lt;h3&gt;H3&lt;/h3&gt;
-&lt;h4&gt;H4&lt;/h4&gt;
-&lt;h5&gt;H5&lt;/h5&gt;
-&lt;h6&gt;H6&lt;/h6&gt;
-&lt;h2&gt;Paragraph&lt;/h2&gt;
-&lt;p&gt;Xerum, quo qui aut unt expliquam qui dolut labo. Aque venitatiusda cum, voluptionse latur sitiae dolessi aut parist aut dollo enim qui voluptate ma dolestendit peritin re plis aut quas inctum laceat est volestemque commosa as cus endigna tectur, offic to cor sequas etum rerum idem sintibus eiur?&lt;/p&gt;
-&lt;p&gt;Itatur? Quiatae cullecum rem ent aut odis in re eossequodi nonsequ idebis ne sapicia is sinveli squiatum, core et que aut hariosam ex eat.&lt;/p&gt;
-&lt;h2&gt;Blockquotes&lt;/h2&gt;
-&lt;p&gt;The blockquote element represents content that is quoted from another source, optionally with a citation which must be within a &lt;code&gt;footer&lt;/code&gt; or &lt;code&gt;cite&lt;/code&gt; element, and optionally with in-line changes such as annotations and abbreviations.&lt;/p&gt;
-&lt;h3&gt;Blockquote without attribution&lt;/h3&gt;
-&lt;blockquote&gt;
-&lt;p&gt;Tiam, ad mint andaepu dandae nostion secatur sequo quae.
-&lt;strong&gt;Note&lt;/strong&gt; that you can use &lt;em&gt;Markdown syntax&lt;/em&gt; within a blockquote.&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h3&gt;Blockquote with attribution&lt;/h3&gt;
-&lt;blockquote&gt;
-&lt;p&gt;You can trade hours for dollars or ideas for millions.&lt;/p&gt;
-— &lt;cite&gt;Cactus Jack&lt;sup id=&#34;fnref:1&#34;&gt;&lt;a href=&#34;#fn:1&#34; class=&#34;footnote-ref&#34; role=&#34;doc-noteref&#34;&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;/cite&gt;&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h2&gt;Tables&lt;/h2&gt;
-&lt;p&gt;Tables aren&#39;t part of the core Markdown spec, but Hugo supports them.&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Name&lt;/th&gt;
-&lt;th&gt;Age&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;Bob&lt;/td&gt;
-&lt;td&gt;27&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Alice&lt;/td&gt;
-&lt;td&gt;23&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h3&gt;Using Markdown inside table cells&lt;/h3&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Italics&lt;/th&gt;
-&lt;th&gt;Bold&lt;/th&gt;
-&lt;th&gt;Code&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;em&gt;italics&lt;/em&gt;&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;bold&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;code&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2&gt;Code Blocks&lt;/h2&gt;
-&lt;pre&gt;&lt;code class=&#34;language-html&#34;&gt;&amp;lt;!doctype html&amp;gt;
-&amp;lt;html lang=&amp;quot;en&amp;quot;&amp;gt;
-&amp;lt;head&amp;gt;
-  &amp;lt;meta charset=&amp;quot;utf-8&amp;quot;&amp;gt;
-  &amp;lt;title&amp;gt;Title&amp;lt;/title&amp;gt;
-&amp;lt;/head&amp;gt;
-&amp;lt;body&amp;gt;
-  &amp;lt;p&amp;gt;Lorem...&amp;lt;/p&amp;gt;
-&amp;lt;/body&amp;gt;
-&amp;lt;/html&amp;gt;
+&lt;p&gt;&lt;a name=&#34;lUll7&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h2&gt;实例：torch.autograd.Function&lt;/h2&gt;
+&lt;p&gt;&lt;a name=&#34;V98FR&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h3&gt;标量对标量求导&lt;/h3&gt;
+&lt;p&gt;&lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/08b0e174ffa6c4beff9f6fe43a4677d4.svg#card=math&amp;amp;code=z%3D%5Csqrt%7Bx%7D%2B%5Cfrac%7B1%7D%7Bx%7D%2B2%2Ay%5E%7B2%7D&amp;amp;height=45&amp;amp;width=180&#34; alt=&#34;&#34;&gt;&lt;br /&gt;对两个变量求偏导：&lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/6dd641e9c3fe9ff17b2012e6714c1a90.svg#card=math&amp;amp;code=%5Cfrac%7B%5Cpartial%20z%7D%7B%5Cpartial%20x%7D%20%3D%20%5Cfrac%7B1%7D%7B2%2A%5Csqrt%7Bx%7D%7D-%5Cfrac%7B1%7D%7Bx%5E%7B2%7D%7D&amp;amp;height=55&amp;amp;width=174&#34; alt=&#34;&#34;&gt;， &lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/aa322133949da2454424848be25a6a2f.svg#card=math&amp;amp;code=%5Cfrac%7B%5Cpartial%20z%7D%7B%5Cpartial%20y%7D%20%3D%204%2Ay&amp;amp;height=52&amp;amp;width=94&#34; alt=&#34;&#34;&gt;。&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;#coding=utf-8
+
+import numpy as np
+import torch
+
+class sqrt_and_inverse(torch.autograd.Function):
+    &amp;quot;&amp;quot;&amp;quot;
+        forward和backward可以定义成静态方法，向定义中那样，否会报错
+        ctx 相当于self，ctx是一个上下文对象，可用于存储用于向后计算的信息
+    &amp;quot;&amp;quot;&amp;quot;
+
+    @staticmethod
+    def forward(ctx, input_x, input_y):
+        &amp;quot;&amp;quot;&amp;quot;    
+        self.save_for_backward(input_x,input_y) ,这个函数是定义在Function的
+        父类_ContextMethodMixin中
+        它是将函数的输入参数保存起来以便后面在求导时候再使用，起前向反向传播中协调作用
+        &amp;quot;&amp;quot;&amp;quot;
+        ctx.save_for_backward(input_x, input_y)
+
+        # torch.reciprocal(input,out=None)说明:返回一个新张量,包含输入input张量每个元素的倒数。
+        output = torch.sqrt(input_x) &#43; torch.reciprocal(input_x) &#43; 2 * torch.pow(input_y, 2)
+        print(&amp;quot;forward: {}&amp;quot;.format(output))
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        &amp;quot;&amp;quot;&amp;quot;
+        :param grad_output: gradient其实就是反向传播上一级计算得到的梯度值[链式求导]
+        &amp;quot;&amp;quot;&amp;quot;
+        input_x, input_y = ctx.saved_tensors # # 获取前面保存的参数,也可以使用self.saved_variables
+        grad_x = grad_output * (torch.reciprocal(2*torch.sqrt(input_x))-torch.reciprocal(torch.pow(input_x,2)))
+        grad_y = grad_output * ( 4*input_y)
+        return grad_x, grad_y #需要注意的是，反向传播得到的结果需要与输入的参数相匹配
+
+
+# 将类封装为一个函数，便于使用，目前最常用的是 apply函数
+MyFuc = sqrt_and_inverse.apply
+
+if __name__ == &amp;quot;__main__&amp;quot;:
+    x = torch.tensor(4.0, requires_grad=True)
+    y = torch.tensor(2.0, requires_grad=True)
+
+    print(&amp;quot;开始前向。。&amp;quot;)
+    z = MyFuc(x, y)
+
+    print(&#39;开始反向传播&#39;)
+    z.backward()
+
+    print(x.grad)  # 预期结果3/16=0.1875
+    print(y.grad) # 8
 &lt;/code&gt;&lt;/pre&gt;
-&lt;h2&gt;List Types&lt;/h2&gt;
-&lt;h3&gt;Ordered List&lt;/h3&gt;
-&lt;ol&gt;
-&lt;li&gt;First item&lt;/li&gt;
-&lt;li&gt;Second item&lt;/li&gt;
-&lt;li&gt;Third item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h3&gt;Unordered List&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;List item&lt;/li&gt;
-&lt;li&gt;Another item&lt;/li&gt;
-&lt;li&gt;And another item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3&gt;Nested Lists&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;ul &amp;gt; ul
-&lt;ul&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;ol&gt;
-&lt;li&gt;ol &amp;gt; ol
-&lt;ol&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;ul&gt;
-&lt;li&gt;ul &amp;gt; ol
-&lt;ol&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;ol&gt;
-&lt;li&gt;ol &amp;gt; ul
-&lt;ul&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;ul&gt;
-&lt;li&gt;ul &amp;gt; ul &amp;gt; ul
-&lt;ul&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item
-&lt;ul&gt;
-&lt;li&gt;Third Sub-Sub-item&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;ol&gt;
-&lt;li&gt;ol &amp;gt; ol &amp;gt; ol
-&lt;ol&gt;
-&lt;li&gt;First Sub-item&lt;/li&gt;
-&lt;li&gt;Second Sub-item
-&lt;ol&gt;
-&lt;li&gt;Third Sub-Sub-item&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h2&gt;Other Elements - abbr, sub, sup, kbd, mark&lt;/h2&gt;
-&lt;p&gt;&lt;abbr title=&#34;Graphics Interchange Format&#34;&gt;GIF&lt;/abbr&gt; is a bitmap image format.&lt;/p&gt;
-&lt;p&gt;H&lt;sub&gt;2&lt;/sub&gt;O X&lt;sup&gt;n&lt;/sup&gt; &#43; Y&lt;sup&gt;n&lt;/sup&gt; = Z&lt;sup&gt;n&lt;/sup&gt;&lt;/p&gt;
-&lt;p&gt;Press &lt;kbd&gt;&lt;kbd&gt;CTRL&lt;/kbd&gt;&#43;&lt;kbd&gt;ALT&lt;/kbd&gt;&#43;&lt;kbd&gt;Delete&lt;/kbd&gt;&lt;/kbd&gt; to end the session.&lt;/p&gt;
-&lt;p&gt;Most &lt;mark&gt;salamanders&lt;/mark&gt; are nocturnal, and hunt for insects, worms, and other small creatures.&lt;/p&gt;
-&lt;section class=&#34;footnotes&#34; role=&#34;doc-endnotes&#34;&gt;
-&lt;hr&gt;
-&lt;ol&gt;
-&lt;li id=&#34;fn:1&#34; role=&#34;doc-endnote&#34;&gt;
-&lt;p&gt;&lt;a href=&#34;https://www.example.com/&#34;&gt;The Shark Tank&lt;/a&gt;. &lt;a href=&#34;#fnref:1&#34; class=&#34;footnote-backref&#34; role=&#34;doc-backlink&#34;&gt;&amp;#x21a9;&amp;#xfe0e;&lt;/a&gt;&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/section&gt;</content>
+&lt;p&gt;&lt;img src=&#34;./imgs/1.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;h3&gt;标量对向量求导&lt;/h3&gt;
+&lt;p&gt;&lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/5fa95988cb9a7fd596f6c392daf541cd.svg#card=math&amp;amp;code=z%20%3D%20%5Csum%20%5Csqrt%7B%28x%5E2-1%29%29%7D&amp;amp;height=42&amp;amp;width=167&#34; alt=&#34;&#34;&gt;&lt;br /&gt;其中&lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/d2e3b43cefcce8b24578a1a0d5f8045d.svg#card=math&amp;amp;code=x%3D%5Bx_%7B1%7D%2C%20x_%7B2%7D%2C%20x_%7B3%7D%5D&amp;amp;height=25&amp;amp;width=129&#34; alt=&#34;&#34;&gt;。&lt;br /&gt;&lt;img src=&#34;https://cdn.nlark.com/yuque/__latex/f16834c5ce1c29dbbed2c3479cd2b6ce.svg#card=math&amp;amp;code=%5Cfrac%7B%5Cpartial%20z%7D%7B%5Cpartial%20x_%7Bi%7D%7D%20%3D%20%5Cfrac%7Bx_%7Bi%7D%7D%20%7B%5Csqrt%7B%28x_%7Bi%7D%5E2-1%29%7D%7D&amp;amp;height=71&amp;amp;width=162&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;
+#coding=utf-8
+
+import numpy as np
+import torch
+
+class sqrt_and_inverse(torch.autograd.Function):
+    &amp;quot;&amp;quot;&amp;quot;
+        forward和backward可以定义成静态方法，向定义中那样，否会报错
+        ctx 相当于self
+    &amp;quot;&amp;quot;&amp;quot;
+
+    @staticmethod
+    def forward(ctx, input_x):
+        &amp;quot;&amp;quot;&amp;quot;
+        self.save_for_backward(input_x,input_y) ,这个函数是定义在Function的父类_ContextMethodMixin中
+        它是将函数的输入参数保存起来以便后面在求导时候再使用，起前向反向传播中协调作用
+        &amp;quot;&amp;quot;&amp;quot;
+        ctx.save_for_backward(input_x)
+
+        # torch.reciprocal(input,out=None)说明:返回一个新张量,包含输入input张量每个元素的倒数。
+        output = torch.sum(torch.sqrt(torch.pow(input_x, 2) - 1))
+        print(&amp;quot;forward: {}&amp;quot;.format(output))
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        &amp;quot;&amp;quot;&amp;quot;
+        :param grad_output: gradient其实就是反向传播上一级计算得到的梯度值[链式求导]
+        &amp;quot;&amp;quot;&amp;quot;
+        # ctx.saved_tensors 返回的是tuple,一维度 (1,)
+        input_x, = ctx.saved_tensors # # 获取前面保存的参数,也可以使用self.saved_variables
+        grad_x = grad_output * (torch.div(input_x, torch.sqrt(torch.pow(input_x, 2) - 1)))
+        return grad_x #需要注意的是，反向传播得到的结果需要与输入的参数相匹配
+
+
+# 将类封装为一个函数，便于使用，目前最常用的是 apply函数
+MyFuc = sqrt_and_inverse.apply
+
+if __name__ == &amp;quot;__main__&amp;quot;:
+    x = torch.tensor([2.0, 3.0, 4.0], requires_grad=True)  # tensor
+
+    print(&#39;开始前向传播&#39;)
+
+    z = MyFuc(x)
+
+    print(&#39;开始反向传播&#39;)
+    # 测试 1（两个只能一次运行一个）
+    #z.backward()
+
+     ## 测试2
+    print(&amp;quot;输入gradient: {}&amp;quot;.format(10))
+    gradient=torch.tensor(10)
+	z.backward(gradient)   
+    
+    print(x.grad)
+
+   
+	
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img src=&#34;./imgs/2.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;./imgs/3.png&#34; alt=&#34;3&#34;&gt;&lt;/p&gt;
+&lt;p&gt;【注意1】自定义函数backward中的grad_output实际上就是通过backward传递进去的参数gradient，这个参数必须是一个tensor类型，当是标量求导的时候，它是一个标量值，当是向量求导的时候，它是一个和求导向量同维度的向量。&lt;/p&gt;
+&lt;p&gt;&lt;a name=&#34;8tIys&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h2&gt;定义自己函数的模板&lt;/h2&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;class MyFunction(torch.autograd.Function):
+    &amp;quot;&amp;quot;&amp;quot;
+        forward和backward可以定义成静态方法，向定义中那样，否会报错
+        ctx 相当于self
+    &amp;quot;&amp;quot;&amp;quot;
+
+    @staticmethod
+    def forward(ctx, inputs, param):
+        &amp;quot;&amp;quot;&amp;quot;
+        自己定义的Function中的forward()方法，所有的Variable参数将会转成tensor， 
+        因此这里的input也是tensor．
+        在传入forward前，autograd engine会自动将Variable unpack成Tensor。
+        
+        self.save_for_backward(input_x,input_y) ,这个函数是定义在Function的
+        父类_ContextMethodMixin中。
+        它是将函数的输入参数保存起来以便后面在求导时候再使用，起前向反向传播中协调作用
+        
+        save_for_backward只能传入Variable或是Tensor的变量，如果是其他类型的，可以用
+        ctx.xyz = xyz，使其在backward中可以用。		
+        &amp;quot;&amp;quot;&amp;quot;
+        self.saved_for_backward = [inputs, parameters]
+        # output = [对输入和参数进行的操作，其实就是前向运算的函数表达式]
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        &amp;quot;&amp;quot;&amp;quot;
+        :param grad_output: gradient其实就是反向传播上一级计算得到的梯度值[链式求导]
+        
+        默认情况下，你拿到grad_output时候，会发现它是一个Variable，
+        虽然自定义操作，但是原则上在backward中我们只能进行Variable的操作,
+        这显然就要求我们在backward中的操作都是可自动求导的。
+        
+        另外自动求导是根据每个op的backward创建的graph来进行的！
+        因此我们需要在backward中用全部用variable来操作
+        
+        另外在pytorch 0.4之后，Variable和Tensor合并了。就没有了这样的问题了，输入也可以是tensor了。
+        &amp;quot;&amp;quot;&amp;quot;
+        # ctx.saved_tensors 返回的是tuple,一维度 (1,)
+        inputs, parameters = self.saved_tensors # 或者是self.saved_variables
+        # grad_inputs = [求函数forward(input)关于 parameters 的导数，其实就是反向运算的导数表达式] * grad_output
+        return grad_input #需要注意的是，反向传播得到的结果需要与输入的参数相匹配
+
+
+# 将类封装为一个函数，便于使用，目前最常用的是 apply函数
+MyFuc = MyFunction.apply
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;a name=&#34;ISe5H&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h2&gt;用自定义的Function创建一个Module&lt;/h2&gt;
+&lt;p&gt;虽然Function类可以用来定义模型，但是不要这么去做，因为Function类本身是为自定义函数而存在。实际上可以先定义一个函数后，然后再创建一个Module，那么利用这Module就可以去搭建复杂的网络。&lt;br /&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-python&#34;&gt;#coding=utf-8
+import torch
+import torch.nn as nn
+
+class LinearFunction(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, input, weight, bias=None):
+        print(type(input))
+        ctx.save_for_backward(input, weight, bias) # 将Tensor转变为Variable保存到ctx中
+        output = input.mm(weight.t())  # torch.t()方法，对2D tensor进行转置
+        if bias is not None:
+            output &#43;= bias.unsqueeze(0).expand_as(output)
+            # expand_as(tensor)等价于expand(tensor.size()), 将原tensor按照新的size进行扩展
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        # grad_output为反向传播上一级计算得到的梯度值
+        input, weight, bias = ctx.saved_variables
+        grad_input = grad_weight = grad_bias = None
+        # 分别代表输入,权值,偏置三者的梯度
+        # 判断三者对应的Variable是否需要进行反向求导计算梯度
+        if ctx.needs_input_grad[0]:
+            grad_input = grad_output.mm(weight) # 复合函数求导，链式法则
+        if ctx.needs_input_grad[1]:
+            grad_weight = grad_output.t().mm(input)
+        if bias is not None and ctx.needs_input_grad[2]:
+            grad_bias = grad_output.sum(0).squeeze(0)
+
+        return grad_input, grad_weight, grad_bias
+
+# 或者使用apply方法对自己定义的方法取个别名
+linear = LinearFunction.apply
+
+
+class Linear(nn.Module):
+    def __init__(self, input_features, output_features, bias=True):
+        super(Linear, self).__init__()
+        self.input_features = input_features
+        self.output_features = output_features
+        # nn.Parameter is a special kind of Variable, that will get
+        # automatically registered as Module&#39;s parameter once it&#39;s assigned
+        # 这个很重要！ Parameters是默认需要梯度的！
+        self.weight = nn.Parameter(torch.Tensor(output_features, input_features))
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(output_features))
+        else:
+            # You should always register all possible parameters, but the
+            # optional ones can be None if you want.
+            self.register_parameter(&#39;bias&#39;, None)
+        # Not a very smart way to initialize weights
+        self.weight.data.uniform_(-0.1, 0.1)
+        if bias is not None:
+            self.bias.data.uniform_(-0.1, 0.1)
+    def forward(self, input):
+        # See the autograd section for explanation of what happens here.
+        return LinearFunction.apply(input, self.weight, self.bias)
+        # 或者　return LinearFunction()(input, self.weight, self.bias)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;br /&gt;参考&lt;br /&gt;1 &lt;a href=&#34;https://blog.csdn.net/qq_27825451/article/details/95189376?depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-8&amp;amp;utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-8&#34;&gt;https://blog.csdn.net/qq_27825451/article/details/95189376?depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-8&amp;amp;utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-8&lt;/a&gt;&lt;br /&gt;2 &lt;a href=&#34;https://blog.csdn.net/qq_27825451/article/details/95312816?depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1&amp;amp;utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1&#34;&gt;https://blog.csdn.net/qq_27825451/article/details/95312816?depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1&amp;amp;utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1&lt;/a&gt;&lt;br /&gt;3 &lt;a href=&#34;https://blog.csdn.net/Hungryof/article/details/78346304&#34;&gt;https://blog.csdn.net/Hungryof/article/details/78346304&lt;/a&gt;&lt;br /&gt;4 &lt;a href=&#34;https://ptorch.com/docs/1/extending#torchnn&#34;&gt;https://ptorch.com/docs/1/extending#torchnn&lt;/a&gt;&lt;/p&gt;</content>
   </entry>
 </feed>

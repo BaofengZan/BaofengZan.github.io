@@ -23,59 +23,19 @@
   </url>
   <url>
     <loc>https://BaofengZan.github.io/</loc>
-    <lastmod>2020-04-29T03:00:00Z</lastmod>
+    <lastmod>2020-04-30T02:00:00Z</lastmod>
   </url>
   <url>
     <loc>https://BaofengZan.github.io/posts/</loc>
-    <lastmod>2020-04-29T03:00:00Z</lastmod>
+    <lastmod>2020-04-30T02:00:00Z</lastmod>
   </url>
   <url>
-    <loc>https://BaofengZan.github.io/myblog/</loc>
-    <lastmod>2020-04-29T03:00:00Z</lastmod>
+    <loc>https://BaofengZan.github.io/blog/</loc>
+    <lastmod>2020-04-30T02:00:00Z</lastmod>
   </url>
   <url>
-    <loc>https://BaofengZan.github.io/tags/axiom/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/categories/axiom/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/categories/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/example-post-1/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/example-post-2/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/example-post-3/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/tags/hugo/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/categories/hugo/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/tags/jamstack/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/categories/jamstack/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
-  </url>
-  <url>
-    <loc>https://BaofengZan.github.io/tags/</loc>
-    <lastmod>2020-01-01T16:30:00Z</lastmod>
+    <loc>https://BaofengZan.github.io/pytorch%E8%87%AA%E5%AE%9A%E4%B9%89%E6%89%A9%E5%B1%95%E5%B9%B6%E5%AF%BC%E5%87%BAonnx/</loc>
+    <lastmod>2020-04-30T02:00:00Z</lastmod>
   </url>
   <url>
     <loc>https://BaofengZan.github.io/home/</loc>
@@ -93,6 +53,9 @@
   </url>
   <url>
     <loc>https://BaofengZan.github.io/_index-%E5%89%AF%E6%9C%AC/</loc>
+  </url>
+  <url>
+    <loc>https://BaofengZan.github.io/categories/</loc>
   </url>
   <url>
     <loc>https://BaofengZan.github.io/tags/config/</loc>
@@ -120,5 +83,8 @@
   </url>
   <url>
     <loc>https://BaofengZan.github.io/tags/shortcodes/</loc>
+  </url>
+  <url>
+    <loc>https://BaofengZan.github.io/tags/</loc>
   </url>
 </urlset>
